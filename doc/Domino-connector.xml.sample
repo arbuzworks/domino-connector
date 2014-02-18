@@ -1,0 +1,7 @@
+<!-- BEGIN_INCLUDE(domino:read) -->
+    <domino:read unid="#[map-payload:unid]" />
+<!-- END_INCLUDE(domino:read) -->
+
+<!-- BEGIN_INCLUDE(domino:create) -->
+    <domino:read payload="#[map-payload:payload]" />
+<!-- END_INCLUDE(domino:create) -->
