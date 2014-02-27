@@ -19,7 +19,6 @@ import org.mule.api.annotations.Processor;
 import org.mule.api.annotations.display.Password;
 import org.mule.api.annotations.param.ConnectionKey;
 import org.mule.api.ConnectionException;
-import org.mule.modules.domino.util.TransformUtil;
 
 import java.util.Map;
 
@@ -80,7 +79,7 @@ public class DominoConnector
             session  = NotesFactory.createSession(host + ":" + port, username, password);
             database = session.getDatabase(serverName, databaseName);
 
-            sessionToken = session.hashCode() + "";
+            sessionToken = session.hashCode() + "";//TODO check why session.getSessionToken() is not working
         } catch(NotesException ne) {
             ne.printStackTrace();
             throw new ConnectionException(ConnectionExceptionCode.UNKNOWN, null, ne.getMessage(), ne);
@@ -122,40 +121,151 @@ public class DominoConnector
      *
      * {@sample.xml ../../../doc/Domino-connector.xml.sample domino:read}
      *
-     * @param unid Content to be processed
-     * @return Domino Document
+     * @param unid universal id
+     * @return dxl payload
      * @throws NotesException when document can not be found
      */
     @Processor
-    public Document read(String unid) throws NotesException
-    {
-        logger.trace("read");
+    public String read(String unid) throws NotesException {
+        logger.trace("read dxl");
+        String dxl = null;
         Document document = database.getDocumentByUNID(unid);
+        if (document != null) {
+            DxlExporter ixp = null;
+            try {
+                ixp = session.createDxlExporter();
+                ixp.setOutputDOCTYPE(false);
+                ixp.setForceNoteFormat(false);
+                dxl = ixp.exportDxl(document);
+            } finally {
+                document.recycle();
+                if (ixp != null)
+                    ixp.recycle();
+            }
+        }
+        return dxl;
+    }
+
+    /**
+     * Import DXL into Domino database using DXLIMPORTOPTION_CREATE option
+     *
+     * {@sample.xml ../../../doc/Domino-connector.xml.sample domino:create}
+     *
+     * @param dxl dxl payload
+     * @throws NotesException when document can not be created
+     */
+    @Processor
+    public void create(String dxl) throws NotesException
+    {
+        logger.trace("create dxl");
+        DxlImporter imp = session.createDxlImporter();
+        try {
+            imp.setDocumentImportOption(DxlImporter.DXLIMPORTOPTION_CREATE);
+            imp.importDxl(dxl, database);
+        } finally {
+            imp.recycle();
+        }
+    }
+
+    /**
+     * Import DXL into Domino database using DXLIMPORTOPTION_UPDATE_ELSE_IGNORE option
+     *
+     * {@sample.xml ../../../doc/Domino-connector.xml.sample domino:update}
+     *
+     * @param dxl dxl payload
+     * @throws NotesException when document can not be updated
+     */
+    @Processor
+    public void update(String dxl) throws NotesException
+    {
+        logger.trace("update dxl");
+        DxlImporter imp = session.createDxlImporter();
+        try {
+            imp.setReplaceDbProperties(false);
+            imp.setDocumentImportOption(DxlImporter.DXLIMPORTOPTION_UPDATE_ELSE_IGNORE);
+            imp.importDxl(dxl, database);
+        } finally {
+            imp.recycle();
+        }
+    }
+
+    /**
+     * Find DXL by query
+     *
+     * {@sample.xml ../../../doc/Domino-connector.xml.sample domino:find}
+     *
+     * @param dxl dxl payload
+     * @return Domino document
+     * @throws NotesException when document can not be found
+     */
+    @Processor
+    public String find(String dxl) throws NotesException {
+        logger.trace("find dxl");
+
+        String response = null;
+        Document document = findDocument(dxl);
+        if (document != null) {
+            DxlExporter ixp = null;
+            try {
+                ixp = session.createDxlExporter();
+                ixp.setOutputDOCTYPE(false);
+                ixp.setForceNoteFormat(false);
+                response = ixp.exportDxl(document);
+            } finally {
+                document.recycle();
+                if (ixp != null)
+                    ixp.recycle();
+            }
+        }
+
+        return response;
+    }
+
+    private Document findDocument(String query) throws NotesException {
+        logger.trace("find");
+
+        Document document = null;
+        View v = database.createView("", query);
+        ViewEntryCollection vc = v.getAllEntries();
+        ViewEntry entry = vc.getFirstEntry();
+        while (entry != null) {
+
+            if (entry.isDocument()) {
+                document = entry.getDocument();
+                break;
+            } else {
+                entry.recycle();
+            }
+
+            entry = vc.getNextEntry();
+        }
+
+        v.recycle();
+        vc.recycle();
 
         return document;
     }
 
     /**
-     * Invokes create method on Domino database
+     * Invoke delete method on Domino database
      *
-     * {@sample.xml ../../../doc/Domino-connector.xml.sample domino:create}
+     * {@sample.xml ../../../doc/Domino-connector.xml.sample domino:delete}
      *
-     * @param payload Payload to be processed
-     * @return Universal ID
-     * @throws NotesException when document can not be found
+     * @param unid universal id
+     *
+     * @return True if success, otherwise FALSE
+     * @throws NotesException when document can not be deleted
      */
     @Processor
-    public String create(Map payload) throws NotesException
+    public boolean delete(String unid) throws NotesException
     {
-        logger.trace("create");
-        Document document = database.createDocument();
+        logger.trace("delete");
+        Document document = database.getDocumentByUNID(unid);
 
-        TransformUtil.mapToDocument(database, payload, document);
+        if (document == null)
+            return false;
 
-        if (document.save())
-            return document.getUniversalID();
-        else
-            return null;
+        return document.remove(true);
     }
 
     /**

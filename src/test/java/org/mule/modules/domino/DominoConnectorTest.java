@@ -12,79 +12,125 @@ package org.mule.modules.domino;
 
 import static org.junit.Assert.*;
 
+import lotus.domino.Document;
 import org.junit.Test;
+import org.mule.DefaultMuleMessage;
 import org.mule.api.MuleEvent;
+import org.mule.api.MuleMessage;
 import org.mule.construct.Flow;
 import org.mule.tck.junit4.FunctionalTestCase;
+import org.mule.transport.NullPayload;
 
-public class DominoConnectorTest extends FunctionalTestCase
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
+public class DominoConnectorTest extends AbstractDominoFunctionalTestCase
 {
-	@Override
+    private static String dxlDocPattern = "<?xml version='1.0'?>"
+            + "<document xmlns='http://www.lotus.com/dxl' version='8.5' %s> %s</document>";
+    private static String dxlItemPattern = "<item name='%3$s'><%1$s>%2$s</%1$s></item>";
+    private static SimpleDateFormat sd = new SimpleDateFormat(
+            "yyyyMMdd'T'HHmmss',00'Z");
+
+    @Override
     protected String getConfigResources()
     {
         return "mule-config.xml";
     }
 
     @Test
-    public void testFlow() throws Exception
+    public void testCreateDelete() throws Exception
     {
-        runFlowAndExpect("testFlow", "Another string");
+        String payloadCreate = generateDxl(createTestPayload());
+
+        MuleMessage replyOfCreate = client.send("vm://test.create", new DefaultMuleMessage(payloadCreate,
+                muleContext));
+
+        assertNotNull(replyOfCreate);
+        assertNotNull(replyOfCreate.getPayload());
     }
 
-    /**
-    * Run the flow specified by name and assert equality on the expected output
-    *
-    * @param flowName The name of the flow to run
-    * @param expect The expected output
-    */
-    protected <T> void runFlowAndExpect(String flowName, T expect) throws Exception
+    private Map<String, Object> createTestPayload()
     {
-        assertEquals(expect, this.runFlow(flowName));
-    }
-    
-    /**
-     * Run the flow specified by name using the specified payload and assert
-     * equality on the expected output
-     *
-     * @param flowName The name of the flow to run
-     * @param expect The expected output
-     * @param payload The payload of the input event
-     */
-    protected <T, U> void runFlowAndExpect(String flowName, T expect, U payload) throws Exception
-    {
-        assertEquals(expect, this.runFlow(flowName, payload));
-    }
-    
-    protected <T> T runFlow(String flowName) throws Exception {
-    	return this.runFlow(flowName, null);
-    }
-    
-    /**
-     * Runs the given flow with the given payload and returns the payload
-     * of the resulting message
-     * @param flowName the name of the flow
-     * @param payload the payload to feed the flow
-     * @return the resulting message payload
-     * @throws Exception
-     */
-    @SuppressWarnings("unchecked")
-    protected <T, U> T runFlow(String flowName, U payload) throws Exception
-    {
-        Flow flow = lookupFlowConstruct(flowName);
-        MuleEvent event = getTestEvent(payload);
-        MuleEvent responseEvent = flow.process(event);
-        
-        return (T) responseEvent.getMessage().getPayload();
+        Map<String, Object> document = new HashMap<String, Object>();
+
+        document.put("Form","Appointment");
+        document.put("Chair", "User1");
+        document.put("AltChair", "User1");
+        document.put("$PublicAccess","1");
+
+        Date now = new Date();
+
+        document.put("STARTDATETIME",now);
+        document.put("EndDateTime",now);
+        document.put("CalendarDateTime", now);
+        document.put("RepeatDates", now);
+        document.put("RepeatInstanceDates", now);
+        document.put("RepeatEndDates",now);
+        document.put("Subject","My Test Meeting");
+        document.put("StartTimeZone",new String("Z=-3005$DO=0$ZX=35$ZN=India"));
+        document.put("EndTimeZone" ,new String("Z=-3005$DO=0$ZX=35$ZN=India"));
+        document.put("AppointmentType","0");
+        document.put("MeetingType", "1");
+        document.put("RepeatUnit","D");
+        document.put("RepeatHow","U");
+        document.put("RepeatUntil",now);
+        document.put("RepeatForUnit","D");
+        document.put("RepeatWeekends","D");
+        document.put("Repeats","1");
+
+        document.put("RepeatStartDate",now);
+        document.put("RepeatEndDate", now);
+        document.put("lastDate",now);
+        document.put("RepeatInterval","1");
+        document.put("$NoPurge",now);
+        document.put("RepeatAdjust","");
+        document.put("RepeatFromEnd","");
+        document.put("RepeatFor","2");
+        document.put("_ViewIcon",160);
+        document.put("OrgTable","CO");
+        document.put("$HFFlags","1");
+        document.put("SchedulerSwitcher","1");
+        document.put("SequenceNum",1);
+        document.put("UpdateSeq",1);
+
+        return document;
     }
 
+    private String generateDxl(Map<String, Object> docItems) {
 
-    /**
-     * Retrieve a flow by name from the registry
-     *
-     * @param name Name of the flow to retrieve
-     */
-    protected Flow lookupFlowConstruct(String name)
-    {
-        return (Flow) muleContext.getRegistry().lookupFlowConstruct(name);
+        StringBuilder sb = new StringBuilder();
+        String formValue = null;
+        for (Map.Entry<String, Object> item : docItems.entrySet()) {
+            String name = item.getKey();
+            Object obj = item.getValue();
+            if ("form".equalsIgnoreCase(name)) {
+                formValue = "" + obj;
+            } else {
+                String type = "text";
+                String value = "";
+                if (obj instanceof Date) {
+                    type = "datetime";
+                    value = sd.format((Date) obj).substring(0, 21);
+                } else if (obj instanceof Number) {
+                    type = "number";
+                    value = "" + obj;
+                } else {
+                    value = "" + obj;
+                }
+                sb.append(String.format(dxlItemPattern, type, value, name)
+                        + "\n");
+            }
+
+        }
+
+        String dxl = String.format(dxlDocPattern, formValue != null ? "form='"
+                + formValue + "'" : "", sb.toString());
+
+        System.out.println(dxl);
+
+        return dxl;
     }
 }

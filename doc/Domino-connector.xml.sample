@@ -1,7 +1,19 @@
 <!-- BEGIN_INCLUDE(domino:read) -->
-    <domino:read unid="#[map-payload:unid]" />
+    <domino:read unid="#[payload.unid]" />
 <!-- END_INCLUDE(domino:read) -->
 
 <!-- BEGIN_INCLUDE(domino:create) -->
-    <domino:read payload="#[map-payload:payload]" />
+    <domino:create dxl="#[payload.dxl]" />
 <!-- END_INCLUDE(domino:create) -->
+
+<!-- BEGIN_INCLUDE(domino:update) -->
+    <domino:create dxl="#[payload.dxl]" />
+<!-- END_INCLUDE(domino:update) -->
+
+<!-- BEGIN_INCLUDE(domino:find) -->
+    <domino:create dxl="#[payload.dxl]" />
+<!-- END_INCLUDE(domino:find) -->
+
+<!-- BEGIN_INCLUDE(domino:delete) -->
+    <domino:read unid="#[payload.unid]" />
+<!-- END_INCLUDE(domino:delete) -->

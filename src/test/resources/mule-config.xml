@@ -3,17 +3,20 @@
 <mule xmlns="http://www.mulesoft.org/schema/mule/core"
       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xmlns:spring="http://www.springframework.org/schema/beans"
+      xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
       xmlns:domino="http://www.mulesoft.org/schema/mule/domino"
       xsi:schemaLocation="
         http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
         http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
         http://www.mulesoft.org/schema/mule/domino http://www.mulesoft.org/schema/mule/domino/1.0-SNAPSHOT/mule-domino.xsd">
 
-    <domino:config host="Some string" port=""
-            username="xxx" password="yyy"/>
+    <domino:config name="Domino" username="User2" password="talipwd" databaseName="mail/user2.nsf"
+                   host="192.168.15.12" port="63148" serverName="192.168.15.12"/>
 
-    <flow name="testFlow">
-        <domino:read content="Another string"/>
+    <flow name="dominoFlowCreate">
+        <vm:inbound-endpoint path="test.create" exchange-pattern="request-response" />
+        <domino:create config-ref="Domino" content="#[message.payload]" username="User2" password="talipwd"/>
     </flow>
 
 </mule>
