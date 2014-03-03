@@ -16,7 +16,7 @@
 
     <flow name="dominoFlowCreate">
         <vm:inbound-endpoint path="test.create" exchange-pattern="request-response" />
-        <domino:create config-ref="Domino" content="#[message.payload]" username="User2" password="talipwd"/>
+        <domino:create config-ref="Domino" dxl="#[message.payload]" username="User2" password="talipwd"/>
     </flow>
 
 </mule>
