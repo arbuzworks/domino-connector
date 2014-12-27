@@ -1,2 +1,1 @@
-
-Domino Connector for Mule ESB 3.5
+# Domino Connector for Mule ESB 3.5
